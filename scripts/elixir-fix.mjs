@@ -45,6 +45,7 @@ for (const [lock, items] of Object.entries(perLock)) {
     new RegExp(`"node_modules/(?:[^"]*/)?${pkg.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')}"[^}]*?"version": "([^"]+)"`, 'g'),
   )].map((m) => m[1]))]
 
+  const gemeld = new Set()
   for (const item of items) {
     // Direct installeren, transitief overriden. Een transitief pakket als directe
     // afhankelijkheid bijzetten liegt over wat het project gebruikt, lang nadat het lek
@@ -58,12 +59,23 @@ for (const [lock, items] of Object.entries(perLock)) {
     // en de andere lijn krijgt een stille downgrade. Zo brak brace-expansion de build van de
     // frituur: 5.x werd teruggezet naar 2.x, en die consumenten verwachten een export die
     // daar niet bestaat. Dit is werk voor een mens, geen boom om door te drukken.
+    //
+    // Eén melding per pakket. Het plan draagt een regel per kwetsbare versie (brace-expansion
+    // 2.1.1 én 5.0.6), en elke regel kwam hier langs: dezelfde reden stond twee keer in
+    // Portal. De reden zelf noemt de versies al.
+    //
+    // In het Engels, zoals alles wat in Portal terechtkomt: de andere redenen van de fixer
+    // zijn dat ook, en één Nederlandse regel ertussen leest als een storing in plaats van
+    // als een uitslag.
     const majors = new Set(versiesVan(item.pkg).map((v) => v.split('.')[0]))
     if (!composer && !direct && majors.size > 1) {
-      mislukt.push({
-        pkg: item.pkg,
-        why: `de boom draagt ${[...majors].join(' en ')}.x van dit pakket; een override zou ze allemaal verzetten`,
-      })
+      if (!gemeld.has(item.pkg)) {
+        gemeld.add(item.pkg)
+        mislukt.push({
+          pkg: item.pkg,
+          why: `the tree carries ${[...majors].join(' and ')}.x of this package; an override would move them all`,
+        })
+      }
       continue
     }
 
