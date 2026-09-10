@@ -18,6 +18,20 @@ on:
         description: 'JSON: [{"pkg":"tar","to":"7.5.21","lock":"package-lock.json"}]'
         required: true
         type: string
+      # Het bewijs dat de gateway met de dispatch meegeeft (Proof-of-Control, rij 8.3.5):
+      # het getekende record en het woord van de opdrachtgever voor deze taak. Dit is het
+      # verre eind: de runner weigert te werken als het bewijs niet klopt tegen het
+      # DID-log en de spiegel. Leeg tot de aanroepende workflow de inputs doorgeeft.
+      evidence:
+        description: 'Het getekende record van de control-gateway, base64url'
+        required: false
+        default: ''
+        type: string
+      capability:
+        description: 'De vergunning van de opdrachtgever voor deze taak'
+        required: false
+        default: ''
+        type: string
       node-version:
         description: 'De node-versie waarop dit project bouwt, of leeg voor een project zonder node'
         required: false
@@ -100,6 +114,16 @@ jobs:
       uitslag: ${{ steps.fix.outputs.uitslag }}
       branch: ${{ steps.tak.outputs.branch }}
     steps:
+      # Eerst het bewijs, dan pas de handen: een dispatch die niemand beoordeelde doet
+      # hier niets. Zolang een repo de inputs nog niet doorgeeft loopt hij zonder toets;
+      # de uitkomst bij de gateway zegt dan evidence_carried: false.
+      - if: inputs.evidence != ''
+        uses: abovebeyond-ai/control-verify-action@v1
+        with:
+          mode: dispatch
+          evidence: ${{ inputs.evidence }}
+          capability: ${{ inputs.capability }}
+
       - uses: actions/checkout@v4
 
       # De handen komen uit deze repo, zodat een verbetering eraan alle projecten bereikt
