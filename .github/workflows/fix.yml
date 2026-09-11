@@ -104,12 +104,13 @@ on:
 jobs:
   fix:
     runs-on: ubuntu-latest
-    # Alleen schrijven naar de repo. Voorstellen doet Elixir, met zijn eigen sleutel: een
-    # pull request van de GITHUB_TOKEN zet geen checks in gang, en dan staat er een voorstel
-    # zonder oordeel. Bovendien is "mag pull requests maken" bij GitHub dezelfde schakelaar
-    # als "mag ze goedkeuren", en dat is breder dan dit werk vraagt.
+    # Alleen lezen. Sinds 11 september 2026 duwt deze runner geen tak meer: hij rekent de
+    # wijziging uit, legt ze klaar als bestanden in de uitslag, en de gateway maakt de tak
+    # zelf, met zijn eigen sleutel, nadat hij het verzoek beoordeeld heeft. Zo passeert
+    # elke schrijfactie op de repo het oordeel, en heeft deze workflow geen schrijfrecht
+    # nodig. Voorstellen deed Elixir al via de gateway, om dezelfde reden.
     permissions:
-      contents: write
+      contents: read
     outputs:
       uitslag: ${{ steps.fix.outputs.uitslag }}
       branch: ${{ steps.tak.outputs.branch }}
@@ -216,7 +217,7 @@ jobs:
         if: inputs.build != ''
         run: ${{ inputs.build }}
 
-      - name: Tak omhoog duwen
+      - name: Wijziging klaarleggen
         id: tak
         env:
           UITSLAG: ${{ steps.fix.outputs.uitslag }}
@@ -246,13 +247,19 @@ jobs:
             exit 0
           fi
           BRANCH="elixir/security-$(date +%Y-%m-%d-%H%M)"
-          git config user.name "elixir"
-          git config user.email "elixir@abovebeyond.ai"
-          git checkout -b "$BRANCH"
+          # Niet duwen: de wijziging gaat als bestanden terug naar Elixir, dat ze aan de
+          # gateway voorlegt. De basis is de commit waarop gerekend is, zodat de gateway
+          # er precies deze bestanden bovenop zet en niets anders.
+          BASE="$(git rev-parse HEAD)"
+          export BASE BRANCH
           git diff --name-only -z -- '*package.json' '*package-lock.json' '*composer.json' '*composer.lock' \
-            | xargs -0 -r git add --
-          git commit -m "Beveiligingsupdates" -m "$UITSLAG"
-          git push -u origin "$BRANCH"
+            | node -e '
+              const fs = require("fs");
+              const paths = fs.readFileSync(0, "utf8").split("\0").filter(Boolean);
+              const files = paths.map((path) => ({ path, content: fs.readFileSync(path).toString("base64") }));
+              fs.writeFileSync("commit.json", JSON.stringify({ base: process.env.BASE, branch: process.env.BRANCH, message: "Beveiligingsupdates", files }));
+              console.log(`${files.length} bestand(en) klaargelegd voor de gateway, basis ${process.env.BASE.slice(0, 7)}`);
+            '
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       # Wat Elixir moet weten om het voorstel te openen en later te kunnen oordelen: wat er
@@ -264,7 +271,14 @@ jobs:
           UITSLAG: ${{ steps.fix.outputs.uitslag }}
           BRANCH: ${{ steps.tak.outputs.branch }}
         run: |
-          node -e 'const u=JSON.parse(process.env.UITSLAG||"{}"); u.branch=process.env.BRANCH||null; require("fs").writeFileSync("uitslag.json", JSON.stringify(u, null, 2))'
+          node -e '
+            const fs = require("fs");
+            const u = JSON.parse(process.env.UITSLAG || "{}");
+            u.branch = process.env.BRANCH || null;
+            // De wijziging zelf, als de runner er een klaarlegde: de gateway maakt er de tak van.
+            if (fs.existsSync("commit.json")) u.commit = JSON.parse(fs.readFileSync("commit.json", "utf8"));
+            fs.writeFileSync("uitslag.json", JSON.stringify(u, null, 2));
+          '
 
       - uses: actions/upload-artifact@v4
         if: always()
