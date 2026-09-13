@@ -125,6 +125,10 @@ die precies `before` is, en doet niets als `text` er al staat. Een pad buiten de
 marker die ontbreekt is een mislukt item met die reden. De tak heet `elixir/<branch>-<datum>`;
 de commit draagt precies de geschreven bestanden en `message`.
 
+De opmaak is die van het project: draait het Pint (`vendor/bin/pint`), dan gaat die na het
+schrijven over exact de geschreven bestanden, vóór de tests. Zo hoeft de hand geen huisstijl
+te kennen; ze schrijft geldige PHP en het project maakt er zijn eigen van.
+
 ## De poorten
 
 Elke stap is er een, en ze staan in deze volgorde omdat elke volgende duurder is:

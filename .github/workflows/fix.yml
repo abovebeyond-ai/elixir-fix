@@ -209,6 +209,25 @@ jobs:
           PLAN: ${{ inputs.plan }}
         run: node .elixir-fix/scripts/elixir-fix.mjs
 
+      # Een bestandenplan schrijft PHP, en de opmaak daarvan is die van het project en niet
+      # van de hand. Draait het project Pint, dan laat de runner die over exact de geschreven
+      # bestanden gaan, vóór de tests. Zonder deze stap viel het eerste voorstel van de
+      # kopregelhand (portal#310, 13 september 2026) op de stijlpoort van de CI: een import
+      # die het niet gebruikte, en een klassenaam die dat project als import schrijft. Een
+      # hand die elke huisstijl zou moeten kennen, kent er geen enkele goed.
+      - name: Opmaak van het project
+        env:
+          UITSLAG: ${{ steps.fix.outputs.uitslag }}
+        run: |
+          set -euo pipefail
+          paden="$(node -e 'const u = JSON.parse(process.env.UITSLAG || "{}"); if ((u.kind || "") === "files") console.log([...new Set((u.applied || []).map((a) => a.path))].join("\n"))')"
+          if [ -z "$paden" ]; then exit 0; fi
+          if [ -x vendor/bin/pint ]; then
+            echo "$paden" | xargs -d '\n' -r vendor/bin/pint
+          else
+            echo "geen Pint in dit project; de bestanden blijven zoals de hand ze schreef"
+          fi
+
       - name: Tests achteraf
         run: ${{ inputs.test }}
 
