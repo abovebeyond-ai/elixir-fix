@@ -10,7 +10,7 @@
 // klantproject las ze allemaal. Hier bestaat die map niet.
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 const plan = JSON.parse(process.env.PLAN || '[]')
@@ -21,6 +21,58 @@ if (!plan.length) {
 
 const run = (cmd, args, cwd) =>
   execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+
+// Twee soorten plan, nooit gemengd. Het eerste soort is pakketten (hieronder). Het tweede,
+// sinds 2026-09-13, is bestanden: de kopregels-hand van Elixir zet een middleware in een
+// Laravel-project en registreert die, en dat is geen npm-commando maar een paar bestanden
+// die geschreven of aangevuld worden. Elixir beslist welke, precies zoals het bij pakketten
+// de versies beslist; dit script schrijft ze en laat de tests daarna oordelen.
+//
+//   { kind: 'meta', branch: 'headers', message: 'Security headers' }
+//   { kind: 'file', path: 'app/Http/Middleware/SecurityHeaders.php', content: '<base64>' }
+//   { kind: 'file', path: 'bootstrap/providers.php', before: '];', text: '    App\\Providers\\X::class,' }
+//
+// `content` schrijft of overschrijft het bestand. `before` plus `text` voegt de regel in
+// vóór de eerste regel die exact `before` is; staat `text` er al, dan is er niets te doen
+// (idempotent), ontbreekt de marker, dan mislukt dat ene item met die reden.
+if (plan.some((item) => item.kind === 'file' || item.kind === 'meta')) {
+  const meta = plan.find((item) => item.kind === 'meta') || {}
+  const applied = []
+  const failed = []
+  for (const item of plan.filter((i) => i.kind === 'file')) {
+    try {
+      if (!item.path || item.path.startsWith('/') || item.path.split('/').includes('..')) {
+        throw new Error('the path has to be relative and inside the repository')
+      }
+      if (item.content !== undefined) {
+        mkdirSync(dirname(item.path), { recursive: true })
+        writeFileSync(item.path, Buffer.from(item.content, 'base64'))
+        applied.push({ path: item.path, kind: 'write' })
+      } else if (item.before !== undefined && item.text !== undefined) {
+        const lines = readFileSync(item.path, 'utf8').split('\n')
+        if (lines.some((l) => l === item.text)) {
+          applied.push({ path: item.path, kind: 'present' })
+          continue
+        }
+        const at = lines.findIndex((l) => l === item.before)
+        if (at === -1) throw new Error(`no line reads exactly ${JSON.stringify(item.before)}`)
+        lines.splice(at, 0, item.text)
+        writeFileSync(item.path, lines.join('\n'))
+        applied.push({ path: item.path, kind: 'insert' })
+      } else {
+        throw new Error('a file item carries content, or before and text')
+      }
+    } catch (e) {
+      failed.push({ path: item.path, why: String(e.message || e).slice(0, 200) })
+    }
+  }
+  // Niets bewezen tot de tests achteraf groen zijn; dat oordeel velt de workflow, hierna.
+  const uitslag = { kind: 'files', meta, applied: applied.filter((a) => a.kind !== 'present'), failed, unproven: [] }
+  console.log(JSON.stringify(uitslag, null, 2))
+  process.env.GITHUB_OUTPUT &&
+    execFileSync('bash', ['-c', `printf '%s\\n' "uitslag<<EOF" ${JSON.stringify(JSON.stringify(uitslag))} "EOF" >> "$GITHUB_OUTPUT"`])
+  process.exit(0)
+}
 
 const gedaan = []
 const mislukt = []
