@@ -105,6 +105,26 @@ databank zelf in docker en wacht tot ze antwoordt.
 workflow-bestand van je project en is dus voor iedereen leesbaar. Een echte sleutel hoort in
 de secrets van de repo, en die heeft deze workflow niet nodig.
 
+## Een bestandenplan
+
+Sinds 2026-09-13 kent de workflow een tweede soort plan: bestanden in plaats van pakketten.
+De kopregels-hand van Elixir zet zo een middleware in een Laravel-project en registreert die.
+Dezelfde rolverdeling: Elixir beslist welke bestanden en wat erin staat, de runner schrijft ze
+en laat de tests oordelen, de gateway maakt de tak en Elixir opent het voorstel.
+
+```json
+[
+  {"kind": "meta", "branch": "headers", "message": "Security headers"},
+  {"kind": "file", "path": "app/Http/Middleware/SecurityHeaders.php", "content": "<base64>"},
+  {"kind": "file", "path": "bootstrap/providers.php", "before": "];", "text": "    App\\Providers\\SecurityHeadersServiceProvider::class,"}
+]
+```
+
+`content` schrijft of overschrijft; `before` plus `text` voegt de regel in vóór de eerste regel
+die precies `before` is, en doet niets als `text` er al staat. Een pad buiten de repo of een
+marker die ontbreekt is een mislukt item met die reden. De tak heet `elixir/<branch>-<datum>`;
+de commit draagt precies de geschreven bestanden en `message`.
+
 ## De poorten
 
 Elke stap is er een, en ze staan in deze volgorde omdat elke volgende duurder is:
