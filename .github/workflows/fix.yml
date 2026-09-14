@@ -135,11 +135,24 @@ jobs:
           ref: v1
           path: .elixir-fix
 
+      # Een lockfile in de root? Dan cachen. Niet? Dan niet, en zeker niet falen: `cache: npm`
+      # eist een lockfile in de root en zet de hele run stop als hij er geen vindt. Vera houdt
+      # zijn node-modules in skill/ (npm ci --prefix skill) en had er geen; de runner stopte
+      # daar met "Dependencies lock file is not found", vóór er iets gemeten was.
+      - name: Lockfile in de root?
+        id: lockfile
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ] || [ -f yarn.lock ]; then
+            echo "cache=npm" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache=" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
         if: inputs.node-version != ''
         with:
           node-version: ${{ inputs.node-version }}
-          cache: npm
+          cache: ${{ steps.lockfile.outputs.cache }}
 
       # Alleen waar het nodig is. Een Laravel-project heeft php nodig en vaak ook node; een
       # Astro-site heeft aan php niets, en een runner die het toch installeert is een minuut
