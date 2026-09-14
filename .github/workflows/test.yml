@@ -35,4 +35,18 @@ jobs:
           for name in ('plan', 'evidence', 'capability', 'php-version', 'node-version', 'install', 'prepare', 'test', 'build', 'env', 'mysql', 'schema'):
               assert name in inputs, f'de invoer {name} is weg, en elk project dat hem meegeeft breekt'
           print(f'{len(inputs)} invoerwaarden, en alle twaalf die de vloot meegeeft staan er')
+
+          # De rechter moet zich laten aanwijzen. De uitslag draagt sinds 14 september 2026
+          # wat er getest is (`judge`), en de hand mag pas beweren dat de tests groen stonden
+          # als dat er staat. Verdwijnt een van deze twee ids, dan leest de bewaarstap een
+          # lege uitkomst en zwijgt het voorstel over de tests - stil, en dus erger dan rood.
+          steps = wf['jobs']['fix']['steps']
+          ids = {s.get('name'): s.get('id') for s in steps}
+          assert ids.get('Tests vooraf') == 'baseline', 'de nulmeting heeft geen id baseline meer'
+          assert ids.get('Tests achteraf') == 'judge', 'de test achteraf heeft geen id judge meer'
+          bewaren = next(s for s in steps if s.get('name') == 'Uitslag bewaren')
+          for naam in ('BASELINE', 'JUDGE', 'TEST'):
+              assert naam in (bewaren.get('env') or {}), f'{naam} bereikt de uitslag niet meer'
+          assert 'u.judge' in bewaren['run'], 'de uitslag draagt de rechter niet meer'
+          print('de rechter staat in de uitslag, met de twee uitkomsten waar de hand op steunt')
           PY
