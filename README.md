@@ -182,3 +182,12 @@ project vraagt: een remote, tests, en een rechter die niet op de machine van de 
 Dat dit er niet was, kostte op 13 en 14 september twee keer hetzelfde: een fout in het
 bestandenplan en een run die afbrak op een ontbrekende lockfile, allebei pas zichtbaar in de
 CI van een klantproject nadat een hand er al mee gedraaid had.
+
+### v1 verzet zichzelf
+
+`v1` is een meebewegende tag en elk project roept de workflow aan op `@v1`, dus een commit op
+`main` bereikt de hele vloot zodra de tag verschuift. Dat verschuiven ging met de hand, en dat
+ging op 13 en 14 september twee keer mis: de fout was al hersteld, de tag stond nog op de
+commit ervoor, en de projecten draaiden de oude runner. `tag.yml` verzet hem nu zelf, en alleen
+als de tests op `main` groen zijn: zonder die tests zou dit het tegenovergestelde van een
+poort zijn.
