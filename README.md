@@ -168,3 +168,17 @@ die niets doet.
 
 `unproven` is het bewijs dat ontbrak: het pakket werd bijgewerkt, maar de lockfile draagt de
 oude versie nog. Beweren is niet bewijzen.
+
+## Tests
+
+`node --test "test/*.test.mjs"`, en dezelfde regel draait in de CI van deze repo. Getoetst
+wordt wat het script doet zonder netwerk: het bestandenplan (schrijven, invoegen vóór een
+marker, twee keer draaien verandert niets, buiten de repo schrijft het nooit) en een leeg
+plan. De pakkettenkant draait npm en composer en wordt daarom in de CI van een project
+bewezen, niet hier.
+
+De runner die elke repo van de vloot aanraakt, hoort zich te houden aan wat de vloot van elk
+project vraagt: een remote, tests, en een rechter die niet op de machine van de dader draait.
+Dat dit er niet was, kostte op 13 en 14 september twee keer hetzelfde: een fout in het
+bestandenplan en een run die afbrak op een ontbrekende lockfile, allebei pas zichtbaar in de
+CI van een klantproject nadat een hand er al mee gedraaid had.

@@ -1,0 +1,38 @@
+# De runner die elke repo van de vloot aanraakt, houdt zich aan wat de vloot van elke repo
+# vraagt: een remote, tests, en een rechter die niet op de machine van de dader draait.
+#
+# Dat het er niet was, kostte twee keer hetzelfde: een fout in het bestandenplan en een
+# afgebroken run door een ontbrekende lockfile, allebei pas zichtbaar in de CI van een
+# klantproject nadat een hand er al mee gedraaid had.
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Tests
+        run: node --test "test/*.test.mjs"
+
+      # De workflow zelf is het andere halve product, en hij draait alleen op een echte
+      # runner. Wat hier wél te toetsen valt: dat hij leesbaar is en de invoer nog heet
+      # zoals Elixir hem stuurt. Een hernoemde invoer breekt anders elk project tegelijk.
+      - name: De workflow leest, en zijn invoer heet nog zoals Elixir hem stuurt
+        run: |
+          python3 - <<'PY'
+          import yaml
+          wf = yaml.safe_load(open('.github/workflows/fix.yml'))
+          on = wf.get('on') or wf.get(True)
+          inputs = on['workflow_call']['inputs']
+          for name in ('plan', 'evidence', 'capability', 'php-version', 'node-version', 'install', 'prepare', 'test', 'build', 'env', 'mysql', 'schema'):
+              assert name in inputs, f'de invoer {name} is weg, en elk project dat hem meegeeft breekt'
+          print(f'{len(inputs)} invoerwaarden, en alle twaalf die de vloot meegeeft staan er')
+          PY
