@@ -214,6 +214,7 @@ jobs:
       # De nulmeting. Staan de tests al rood vóór de wijziging, dan is er geen rechter
       # beschikbaar en gebeurt er niets: anders veroordeelt de update een fout die er al was.
       - name: Tests vooraf
+        id: baseline
         run: ${{ inputs.test }}
 
       - name: Pakketten bijwerken
@@ -242,6 +243,7 @@ jobs:
           fi
 
       - name: Tests achteraf
+        id: judge
         run: ${{ inputs.test }}
 
       # Bouwen, want een versiesprong breekt zelden een unit test en vaak een import.
@@ -321,6 +323,9 @@ jobs:
         env:
           UITSLAG: ${{ steps.fix.outputs.uitslag }}
           BRANCH: ${{ steps.tak.outputs.branch }}
+          TEST: ${{ inputs.test }}
+          BASELINE: ${{ steps.baseline.outcome }}
+          JUDGE: ${{ steps.judge.outcome }}
         run: |
           node -e '
             const fs = require("fs");
@@ -328,6 +333,11 @@ jobs:
             u.branch = process.env.BRANCH || null;
             // De wijziging zelf, als de runner er een klaarlegde: de gateway maakt er de tak van.
             if (fs.existsSync("commit.json")) u.commit = JSON.parse(fs.readFileSync("commit.json", "utf8"));
+            // En wie de rechter was. Zonder dit weet de hand niet dat er getest is, en tot
+            // 14 september 2026 beweerde elk voorstel dat de tests groen stonden omdat het
+            // sjabloon die regel onvoorwaardelijk droeg. Wat hier staat is wat er gebeurde:
+            // het commando, en de uitkomst van de run ervoor en die erna.
+            u.judge = { command: process.env.TEST || null, before: process.env.BASELINE || null, after: process.env.JUDGE || null };
             fs.writeFileSync("uitslag.json", JSON.stringify(u, null, 2));
           '
 
