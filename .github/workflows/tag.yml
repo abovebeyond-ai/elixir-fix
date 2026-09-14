@@ -1,0 +1,50 @@
+# v1 verzet zichzelf, en alleen als de tests groen zijn.
+#
+# `v1` is een meebewegende tag: elk project roept de workflow aan op @v1, dus een commit op
+# main bereikt de hele vloot zodra de tag verschuift. Dat verschuiven ging met de hand, en dat
+# ging twee keer mis op één dag: na het mergen van het bestandenplan en na de cache-fix bleef
+# v1 op de oude commit staan, en de vloot draaide een runner die de fout nog had. Beide keren
+# was de fout al hersteld en wachtte alleen de tag.
+#
+# Automatisch verzetten mag hier omdat deze repo sinds vandaag zijn eigen poorten haalt: de
+# tag beweegt pas als de tests op main groen zijn. Zonder die tests zou dit precies het
+# tegenovergestelde zijn van een poort.
+name: tag
+
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  v1:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # Idempotent, en het zegt wat het deed: wie dit later naleest ziet van welke commit
+      # naar welke, en dus wat de vloot bij haar volgende run ging draaien.
+      - name: v1 naar deze commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          huidig="$(gh api repos/${{ github.repository }}/git/ref/tags/v1 --jq .object.sha 2>/dev/null || echo '')"
+          if [ "$huidig" = "$SHA" ]; then
+            echo "v1 staat al op $SHA"
+            exit 0
+          fi
+          if [ -z "$huidig" ]; then
+            gh api -X POST repos/${{ github.repository }}/git/refs -f ref=refs/tags/v1 -f sha="$SHA" >/dev/null
+          else
+            gh api -X PATCH repos/${{ github.repository }}/git/refs/tags/v1 -f sha="$SHA" -F force=true >/dev/null
+          fi
+          echo "v1 verzet van ${huidig:-niets} naar $SHA; de vloot draait dit bij haar volgende run"
